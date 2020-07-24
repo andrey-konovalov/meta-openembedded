@@ -18,11 +18,9 @@ SRC_URI = "https://downloads.mariadb.org/interstitial/${BP}/source/${BP}.tar.gz 
            file://c11_atomics.patch \
            file://clang_version_header_conflict.patch \
            file://fix-arm-atomic.patch \
-           file://0001-Fix-build-breakage-from-lock_guard-error-6161.patch \
            file://0001-Fix-library-LZ4-lookup.patch \
           "
-SRC_URI[md5sum] = "97d7c0f508c04a31c138fdb24e95dbc4"
-SRC_URI[sha256sum] = "fef1e1d38aa253dd8a51006bd15aad184912fce31c446bb69434fcde735aa208"
+SRC_URI[sha256sum] = "26db2becc9cec37e99a4e73390bd2eaa74568e21f9cf110359f4f68b37154c72"
 
 UPSTREAM_CHECK_URI = "https://github.com/MariaDB/server/releases"
 
@@ -86,6 +84,10 @@ EXTRA_OECMAKE = "-DWITH_EMBEDDED_SERVER=ON \
                  -DMYSQL_DATADIR:PATH=/var/mysql \
                  -DCAT_EXECUTABLE=`which cat` \
                  -DCMAKE_AR:FILEPATH=${AR}"
+
+# disable rocksdb engine for arm64 to workaround the undefined reference to `crc32c_arm64(unsigned int, unsigned char const*, unsigned int)'
+# check https://jira.mariadb.org/browse/MDEV-23137 for more details
+EXTRA_OECMAKE_append_aarch64 = " -DPLUGIN_ROCKSDB=NO"
 
 # With Ninja it fails with:
 # make: *** No rule to make target `install'.  Stop.
@@ -169,8 +171,10 @@ do_install() {
         mv ${D}${datadir}/doc/README ${D}${datadir}/doc/${PN}/
     fi
     if ${@bb.utils.contains('DISTRO_FEATURES', 'pam', 'true', 'false', d)}; then
-        mv ${D}/lib/security ${D}/${libdir}
-        rmdir --ignore-fail-on-non-empty ${D}/lib
+        if [ -f ${D}/lib/security ]; then
+            mv ${D}/lib/security ${D}/${libdir}
+            rmdir --ignore-fail-on-non-empty ${D}/lib
+        fi
     fi
 }
 
